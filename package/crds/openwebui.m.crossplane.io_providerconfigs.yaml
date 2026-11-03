@@ -70,23 +70,6 @@ spec:
                   profile for, with the newest profile and a Warning event. Without it, an unsupported
                   minor makes the provider config unavailable.
                 type: boolean
-              apiKeySecretRef:
-                description: |-
-                  APIKeySecretRef selects the Secret key that holds the API key of an Open WebUI admin
-                  account.
-                properties:
-                  key:
-                    description: Key of the Secret's data that holds the value.
-                    minLength: 1
-                    type: string
-                  name:
-                    description: Name of the Secret.
-                    minLength: 1
-                    type: string
-                required:
-                - key
-                - name
-                type: object
               authHeader:
                 default: Authorization
                 description: |-
@@ -112,6 +95,39 @@ spec:
                 - key
                 - name
                 type: object
+              credentials:
+                description: |-
+                  Credentials select the API key of an Open WebUI admin account, which the provider
+                  sends in authHeader on every request. The Secret is read in the ProviderConfig's
+                  namespace.
+                properties:
+                  secretRef:
+                    description: |-
+                      SecretRef selects the Secret key that holds the API key, in the namespace of the
+                      ProviderConfig.
+                    properties:
+                      key:
+                        description: Key of the Secret's data that holds the value.
+                        minLength: 1
+                        type: string
+                      name:
+                        description: Name of the Secret.
+                        minLength: 1
+                        type: string
+                    required:
+                    - key
+                    - name
+                    type: object
+                  source:
+                    description: Source of the API key. Secret, the only source, reads
+                      it from secretRef.
+                    enum:
+                    - Secret
+                    type: string
+                required:
+                - secretRef
+                - source
+                type: object
               insecureSkipVerify:
                 description: |-
                   InsecureSkipVerify disables the verification of the server's TLS certificate. It is
@@ -125,7 +141,7 @@ spec:
                 pattern: ^https?://[^/?#@]+(/[^?#]*)?$
                 type: string
             required:
-            - apiKeySecretRef
+            - credentials
             - url
             type: object
           status:

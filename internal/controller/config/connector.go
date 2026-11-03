@@ -119,6 +119,7 @@ type settings struct {
 	// id identifies the provider config, e.g. ProviderConfig/team/owui.
 	id string
 	v1alpha1.ConnectionSettings
+	source v1alpha1.CredentialsSource
 	apiKey secretKey
 	caCert *secretKey
 }
@@ -127,20 +128,24 @@ type settings struct {
 func settingsOf(pc resource.ProviderConfig) (settings, error) {
 	switch pc := pc.(type) {
 	case *v1alpha1.ProviderConfig:
+		key := pc.Spec.Credentials.SecretRef
 		s := settings{
 			id:                 v1alpha1.ProviderConfigKind + "/" + pc.GetNamespace() + "/" + pc.GetName(),
 			ConnectionSettings: pc.Spec.ConnectionSettings,
-			apiKey:             secretKey{namespace: pc.GetNamespace(), name: pc.Spec.APIKeySecretRef.Name, key: pc.Spec.APIKeySecretRef.Key},
+			source:             pc.Spec.Credentials.Source,
+			apiKey:             secretKey{namespace: pc.GetNamespace(), name: key.Name, key: key.Key},
 		}
 		if ref := pc.Spec.CACertSecretRef; ref != nil {
 			s.caCert = &secretKey{namespace: pc.GetNamespace(), name: ref.Name, key: ref.Key}
 		}
 		return s, nil
 	case *v1alpha1.ClusterProviderConfig:
+		key := pc.Spec.Credentials.SecretRef
 		s := settings{
 			id:                 v1alpha1.ClusterProviderConfigKind + "/" + pc.GetName(),
 			ConnectionSettings: pc.Spec.ConnectionSettings,
-			apiKey:             secretKey{namespace: pc.Spec.APIKeySecretRef.Namespace, name: pc.Spec.APIKeySecretRef.Name, key: pc.Spec.APIKeySecretRef.Key},
+			source:             pc.Spec.Credentials.Source,
+			apiKey:             secretKey{namespace: key.Namespace, name: key.Name, key: key.Key},
 		}
 		if ref := pc.Spec.CACertSecretRef; ref != nil {
 			s.caCert = &secretKey{namespace: ref.Namespace, name: ref.Name, key: ref.Key}
@@ -182,7 +187,7 @@ func (c *Connector) ConnectConfig(ctx context.Context, pc resource.ProviderConfi
 	if err != nil {
 		return nil, err
 	}
-	token, err := c.secretValue(ctx, s.apiKey)
+	token, err := c.apiKey(ctx, s)
 	if err != nil {
 		return nil, errors.Wrap(err, "cannot read the API key")
 	}
@@ -243,6 +248,14 @@ func (c *Connector) doer(id string, cfg transport.Config) (client.Doer, error) {
 	}
 	c.doers[id] = cachedDoer{fingerprint: fp, doer: d}
 	return d, nil
+}
+
+// apiKey returns the API key of s, from its credentials source.
+func (c *Connector) apiKey(ctx context.Context, s settings) ([]byte, error) {
+	if s.source != v1alpha1.CredentialsSourceSecret {
+		return nil, errors.Errorf("unsupported credentials source %q", s.source)
+	}
+	return c.secretValue(ctx, s.apiKey)
 }
 
 // secretValue returns the value of a Secret key. Errors name the Secret and the key, never

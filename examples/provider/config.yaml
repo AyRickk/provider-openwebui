@@ -21,9 +21,11 @@ metadata:
   namespace: default
 spec:
   url: http://open-webui.open-webui.svc:8080
-  apiKeySecretRef:
-    name: openwebui-api-key
-    key: token
+  credentials:
+    source: Secret
+    secretRef:
+      name: openwebui-api-key
+      key: token
 ---
 apiVersion: openwebui.m.crossplane.io/v1alpha1
 kind: ClusterProviderConfig
@@ -31,7 +33,9 @@ metadata:
   name: default
 spec:
   url: http://open-webui.open-webui.svc:8080
-  apiKeySecretRef:
-    namespace: default
-    name: openwebui-api-key
-    key: token
+  credentials:
+    source: Secret
+    secretRef:
+      namespace: default
+      name: openwebui-api-key
+      key: token

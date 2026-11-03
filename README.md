@@ -2,6 +2,30 @@
 
 A native Crossplane v2 provider for Open WebUI. Work in progress; see `docs/progress.md`.
 
+## Provider configuration
+
+A `ProviderConfig` connects the managed resources of its namespace to an Open WebUI instance; a `ClusterProviderConfig` serves every namespace, and managed resources use the one named `default` unless they reference another. Both authenticate with the API key of an Open WebUI admin account, read from a Secret:
+
+```yaml
+apiVersion: openwebui.m.crossplane.io/v1alpha1
+kind: ProviderConfig
+metadata:
+  name: example
+  namespace: default
+spec:
+  url: http://open-webui.open-webui.svc:8080
+  credentials:
+    source: Secret            # the only source
+    secretRef:                # a Secret of the ProviderConfig's namespace
+      name: openwebui-api-key
+      key: token
+```
+
+- `credentials.secretRef` of a `ProviderConfig` has no namespace: its Secrets are always read in its own namespace ([ADR-0006](docs/adr/0006-rbac-scope.md)). A `ClusterProviderConfig` names the namespace with `secretRef.namespace`, and likewise `caCertSecretRef.namespace`.
+- Optional settings: `authHeader` (default `Authorization`, which sends `Bearer <key>`; any other header sends the bare key), `caCertSecretRef` (PEM CA certificates trusted besides the system's), `insecureSkipVerify` and `allowUnsupportedVersions`.
+
+`examples/provider/config.yaml` holds both kinds. Once connected, a provider config reports `status.version`, `status.profile` and its `Ready` condition.
+
 ## Development environment
 
 The devcontainer is the only execution environment. The host needs a container runtime (Docker or Podman) and the [devcontainer CLI](https://github.com/devcontainers/cli); everything else is installed inside the container. Tool versions are pinned in `mise.toml`, mise itself in `.devcontainer/Dockerfile` and `.github/workflows/ci.yml`, which Renovate updates together. The tools live in the `provider-openwebui-mise` volume, so rebuilding the container does not download them again. Containers started from inside (Open WebUI instances, kind clusters) run in the devcontainer's own Docker daemon (docker-in-docker).

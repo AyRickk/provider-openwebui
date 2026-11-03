@@ -89,14 +89,43 @@ type ConnectionSettings struct {
 	AllowUnsupportedVersions bool `json:"allowUnsupportedVersions,omitempty"`
 }
 
+// A CredentialsSource is where the provider reads the API key from.
+// +kubebuilder:validation:Enum=Secret
+type CredentialsSource string
+
+// CredentialsSourceSecret reads the API key from a key of a Secret.
+const CredentialsSourceSecret CredentialsSource = "Secret"
+
+// ProviderCredentials are the credentials of a ProviderConfig: the API key of an Open
+// WebUI admin account.
+type ProviderCredentials struct {
+	// Source of the API key. Secret, the only source, reads it from secretRef.
+	Source CredentialsSource `json:"source"`
+
+	// SecretRef selects the Secret key that holds the API key, in the namespace of the
+	// ProviderConfig.
+	SecretRef LocalSecretKeySelector `json:"secretRef"`
+}
+
+// ClusterProviderCredentials are the credentials of a ClusterProviderConfig: the API key
+// of an Open WebUI admin account.
+type ClusterProviderCredentials struct {
+	// Source of the API key. Secret, the only source, reads it from secretRef.
+	Source CredentialsSource `json:"source"`
+
+	// SecretRef selects the Secret key that holds the API key, in the namespace it names.
+	SecretRef SecretKeySelector `json:"secretRef"`
+}
+
 // A ProviderConfigSpec configures the connection to an Open WebUI instance. Its Secrets
 // live in the namespace of the ProviderConfig.
 type ProviderConfigSpec struct {
 	ConnectionSettings `json:",inline"`
 
-	// APIKeySecretRef selects the Secret key that holds the API key of an Open WebUI admin
-	// account.
-	APIKeySecretRef LocalSecretKeySelector `json:"apiKeySecretRef"`
+	// Credentials select the API key of an Open WebUI admin account, which the provider
+	// sends in authHeader on every request. The Secret is read in the ProviderConfig's
+	// namespace.
+	Credentials ProviderCredentials `json:"credentials"`
 
 	// CACertSecretRef selects the Secret key that holds PEM-encoded CA certificates,
 	// trusted in addition to the system's to verify the server's certificate.
@@ -109,9 +138,10 @@ type ProviderConfigSpec struct {
 type ClusterProviderConfigSpec struct {
 	ConnectionSettings `json:",inline"`
 
-	// APIKeySecretRef selects the Secret key that holds the API key of an Open WebUI admin
-	// account.
-	APIKeySecretRef SecretKeySelector `json:"apiKeySecretRef"`
+	// Credentials select the API key of an Open WebUI admin account, which the provider
+	// sends in authHeader on every request. The Secret is read in the namespace secretRef
+	// names.
+	Credentials ClusterProviderCredentials `json:"credentials"`
 
 	// CACertSecretRef selects the Secret key that holds PEM-encoded CA certificates,
 	// trusted in addition to the system's to verify the server's certificate.
