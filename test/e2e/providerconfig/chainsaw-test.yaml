@@ -25,9 +25,11 @@ spec:
                 name: openwebui
               spec:
                 url: ($values.url)
-                apiKeySecretRef:
-                  name: openwebui-api-key
-                  key: token
+                credentials:
+                  source: Secret
+                  secretRef:
+                    name: openwebui-api-key
+                    key: token
     - name: ready
       try:
         - assert:

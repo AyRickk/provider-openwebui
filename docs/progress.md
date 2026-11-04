@@ -4,7 +4,7 @@ This document is **rewritten, never appended to**. It describes the current stat
 
 ## Current phase
 
-**Phase 1: foundation.** Phase 0 is closed: [ADR-0001](adr/0001-phase-0-api-consolidation.md) is accepted, with the maintainer's [decisions](adr/0001-phase-0-api-consolidation.md#decisions). Phase 1 builds what every resource needs, per spec #3 and ADR-0001's [phase 1 consequences](adr/0001-phase-0-api-consolidation.md#phase-1-foundation). The phase 1 foundation is done, with three follow-ups from the survey of the major providers (below); no resource kind exists yet, and `Group` opens phase 2. The three test harnesses of spec #3 are in place: the tracer bullet #28 (e2e, S3) runs the provider in kind under Crossplane, and the contract harness #29 (S1) runs the client layer against real instances, on both supported versions.
+**Phase 1: foundation.** Phase 0 is closed: [ADR-0001](adr/0001-phase-0-api-consolidation.md) is accepted, with the maintainer's [decisions](adr/0001-phase-0-api-consolidation.md#decisions). Phase 1 builds what every resource needs, per spec #3 and ADR-0001's [phase 1 consequences](adr/0001-phase-0-api-consolidation.md#phase-1-foundation). The phase 1 foundation is done, with two follow-ups left from the survey of the major providers (below); no resource kind exists yet, and `Group` opens phase 2. The three test harnesses of spec #3 are in place: the tracer bullet #28 (e2e, S3) runs the provider in kind under Crossplane, and the contract harness #29 (S1) runs the client layer against real instances, on both supported versions.
 
 Done so far:
 
@@ -16,7 +16,8 @@ Done so far:
   - `Profile.CheckCredentials` calls `GET /api/v1/users/default/permissions`. A bad key gives `ErrUnauthorized`. A non-admin key gives `ErrForbidden`: it also answers 401, recognized by its detail.
   - ADR-0001's not-found and conflict map is profile data: `Profile.StatusErrors(op)` and `Profile.MissingSucceeds(op)`. Resource tickets pass them into their requests.
 - `ProviderConfig` and `ClusterProviderConfig` (#27):
-  - Spec: `url`, `apiKeySecretRef`, `authHeader`, `caCertSecretRef`, `insecureSkipVerify`, `allowUnsupportedVersions`. A `ProviderConfig` reads its Secrets in its own namespace; a `ClusterProviderConfig` names theirs.
+  - Spec: `url`, `credentials`, `authHeader`, `caCertSecretRef`, `insecureSkipVerify`, `allowUnsupportedVersions`. A `ProviderConfig` reads its Secrets in its own namespace; a `ClusterProviderConfig` names theirs.
+  - The credentials take the layout of the major providers (#43): `credentials.source`, an enum restricted to `Secret`, and `credentials.secretRef`, a local selector on `ProviderConfig` (ADR-0006) and a namespaced one on `ClusterProviderConfig`. `caCertSecretRef` stays beside `url` and `insecureSkipVerify`, the other TLS setting, rather than under a `tls` block. The README's "Provider configuration" section describes the layout.
   - `config.Connector`, in `internal/controller/config`, is shared by every controller. It reads the Secrets, keeps one `Doer` per provider config, detects the version, selects the profile and checks the credentials. `Connect(ctx, mg)` tracks the usage first, then resolves the managed resource's provider config. Resource controllers receive the connector in `Setup`, and the `provider.addtype` scaffold already uses it.
   - The provider config controllers report `status.version`, `status.profile` and the `Ready` condition, checked every poll interval. A `Warning` event is emitted when `Ready` turns to an error or to an allowed unsupported version.
 - The baseline CI (#24):
@@ -51,7 +52,6 @@ GitHub's issue dependencies are the source of truth for blockers; this table is 
 
 | Ticket | Title | Blocked by |
 | --- | --- | --- |
-| #43 | refactor(apis): provider config credentials as credentials.source and secretRef | none |
 | #44 | docs(security): ImageConfig example to verify releases | none, but needs the phase 4 release workflow |
 | #45 | docs: per-resource poll interval and provider config Ready condition | none |
 
@@ -59,7 +59,7 @@ Signed publishing to ghcr (cosign, SBOM, maintainer approval) is phase 4, with t
 
 ## Frontier
 
-**#43** (provider config credentials layout), unblocked: an API change best made before any resource kind depends on the provider config. Then #45. #44 waits for the release workflow of phase 4. Phase 2 (`Group`, then `Model`) starts once its tickets are opened under #3; the `Group` ticket builds on ADRs 0003, 0005 and 0006 (UUID identity, adoption and ownership, local references).
+**#45** (per-resource poll interval and provider config Ready condition), unblocked. #44 waits for the release workflow of phase 4. Phase 2 (`Group`, then `Model`) starts once its tickets are opened under #3; the `Group` ticket builds on ADRs 0003, 0005 and 0006 (UUID identity, adoption and ownership, local references).
 
 ## Open questions
 

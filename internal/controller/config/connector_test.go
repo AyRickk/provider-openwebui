@@ -102,7 +102,10 @@ func providerConfig(mod ...func(*v1alpha1.ProviderConfig)) *v1alpha1.ProviderCon
 		ObjectMeta: metav1.ObjectMeta{Namespace: "team", Name: "owui"},
 		Spec: v1alpha1.ProviderConfigSpec{
 			ConnectionSettings: v1alpha1.ConnectionSettings{URL: "https://owui.example.com"},
-			APIKeySecretRef:    v1alpha1.LocalSecretKeySelector{Name: "owui-key", Key: tokenKey},
+			Credentials: v1alpha1.ProviderCredentials{
+				Source:    v1alpha1.CredentialsSourceSecret,
+				SecretRef: v1alpha1.LocalSecretKeySelector{Name: "owui-key", Key: tokenKey},
+			},
 		},
 	}
 	for _, m := range mod {
@@ -116,7 +119,10 @@ func clusterProviderConfig(mod ...func(*v1alpha1.ClusterProviderConfig)) *v1alph
 		ObjectMeta: metav1.ObjectMeta{Name: "default"},
 		Spec: v1alpha1.ClusterProviderConfigSpec{
 			ConnectionSettings: v1alpha1.ConnectionSettings{URL: "https://owui.example.com"},
-			APIKeySecretRef:    v1alpha1.SecretKeySelector{Namespace: "crossplane-system", Name: "owui-key", Key: tokenKey},
+			Credentials: v1alpha1.ClusterProviderCredentials{
+				Source:    v1alpha1.CredentialsSourceSecret,
+				SecretRef: v1alpha1.SecretKeySelector{Namespace: "crossplane-system", Name: "owui-key", Key: tokenKey},
+			},
 		},
 	}
 	for _, m := range mod {
@@ -184,6 +190,15 @@ func TestConnectConfig(t *testing.T) {
 					InsecureSkipVerify: true,
 				},
 			},
+		},
+		"UnknownSource": {
+			reason: "A credentials source other than Secret is an error naming it.",
+			owui:   fakeOpenWebUI{version: v0124},
+			objs:   []kclient.Object{secret("team", "owui-key", map[string]string{tokenKey: apiKey})},
+			pc: providerConfig(func(pc *v1alpha1.ProviderConfig) {
+				pc.Spec.Credentials.Source = "Environment"
+			}),
+			want: want{msg: `cannot read the API key: unsupported credentials source "Environment"`},
 		},
 		"MissingSecret": {
 			reason: "A missing API key Secret is an error naming it.",
