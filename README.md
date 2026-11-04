@@ -24,7 +24,50 @@ spec:
 - `credentials.secretRef` of a `ProviderConfig` has no namespace: its Secrets are always read in its own namespace ([ADR-0006](docs/adr/0006-rbac-scope.md)). A `ClusterProviderConfig` names the namespace with `secretRef.namespace`, and likewise `caCertSecretRef.namespace`.
 - Optional settings: `authHeader` (default `Authorization`, which sends `Bearer <key>`; any other header sends the bare key), `caCertSecretRef` (PEM CA certificates trusted besides the system's), `insecureSkipVerify` and `allowUnsupportedVersions`.
 
-`examples/provider/config.yaml` holds both kinds. Once connected, a provider config reports `status.version`, `status.profile` and its `Ready` condition.
+`examples/provider/config.yaml` holds both kinds.
+
+### The `Ready` condition
+
+The `Ready` condition of a `ProviderConfig` or a `ClusterProviderConfig` reports whether the provider can use it. It is specific to this provider: no other Crossplane provider reports a version and credential check on its provider configs.
+
+The provider reads the Secrets, detects the Open WebUI version and checks the API key when the provider config or its usages change, and at least every [`--poll` interval](#poll-interval):
+
+| `Ready` | Reason | Meaning | `status.version` and `status.profile` | Event |
+| --- | --- | --- | --- | --- |
+| `True` | `Available` | The version is supported and the key belongs to an admin. | set | none |
+| `True` | `Available` | The minor is not supported, but `allowUnsupportedVersions` lets the provider use the newest profile. The key was accepted, and the message names the version and the profile. | set | `Warning`, `UnsupportedVersion` |
+| `False` | `Unavailable` | The check failed: a missing Secret or key, an unreachable instance, an unsupported minor, or a rejected or non-admin key. The message says which. | empty | `Warning`, `CannotConnect` |
+
+An event is emitted when the condition changes, not on every check. The detected version is cached for 5 minutes, so an upgrade of Open WebUI can take that long, plus the wait for the next check, to show.
+
+```bash
+kubectl get providerconfigs.openwebui.m.crossplane.io -n default example     # READY, VERSION and PROFILE columns
+kubectl wait providerconfigs.openwebui.m.crossplane.io -n default example --for=condition=Ready
+```
+
+A provider config has no `Synced` condition. Managed resources do not read `Ready`: each of their reconciles makes the same checks, and a failure gives `Synced=False` with the same error, prefixed `connect failed:`.
+
+## Poll interval
+
+The provider has no way to be notified of a change in Open WebUI, so it reads each managed resource again at a fixed interval, and that is what corrects drift. The `--poll` flag sets this interval for every resource (default `1m`). The flag is an argument of the provider's container, set through a `DeploymentRuntimeConfig`.
+
+The `crossplane.io/poll-interval` annotation, from crossplane-runtime, overrides it for one managed resource. For example, on a `Group`, the first kind planned (the provider has no managed resource kind yet):
+
+```yaml
+apiVersion: openwebui.m.crossplane.io/v1alpha1
+kind: Group
+metadata:
+  name: platform
+  namespace: default
+  annotations:
+    crossplane.io/poll-interval: 30s
+# spec omitted: the annotation is all this example shows
+```
+
+- The value is a Go duration, such as `30s`, `5m` or `1h30m`, and can be shorter or longer than `--poll`. The provider sets no minimum, and `--max-reconcile-rate` still caps the reconciles of the whole provider.
+- A value that does not parse, or is zero or negative, is ignored without an error or an event: the resource uses `--poll`.
+- A failed reconcile is retried with backoff, whatever the interval. The exception is a resource under `managementPolicies: ["Observe"]` whose object does not exist in Open WebUI: it is `Synced=False`, and checked again at the interval.
+- The annotation has no effect on a provider config, whose [`Ready` condition](#the-ready-condition) is checked on the `--poll` interval.
 
 ## Development environment
 
