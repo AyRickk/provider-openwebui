@@ -4,7 +4,7 @@ This document is **rewritten, never appended to**. It describes the current stat
 
 ## Current phase
 
-**Phase 1: foundation.** Phase 0 is closed: [ADR-0001](adr/0001-phase-0-api-consolidation.md) is accepted, with the maintainer's [decisions](adr/0001-phase-0-api-consolidation.md#decisions). Phase 1 builds what every resource needs, per spec #3 and ADR-0001's [phase 1 consequences](adr/0001-phase-0-api-consolidation.md#phase-1-foundation). The phase 1 foundation is done, with two follow-ups left from the survey of the major providers (below); no resource kind exists yet, and `Group` opens phase 2. The three test harnesses of spec #3 are in place: the tracer bullet #28 (e2e, S3) runs the provider in kind under Crossplane, and the contract harness #29 (S1) runs the client layer against real instances, on both supported versions.
+**Phase 1: foundation.** Phase 0 is closed: [ADR-0001](adr/0001-phase-0-api-consolidation.md) is accepted, with the maintainer's [decisions](adr/0001-phase-0-api-consolidation.md#decisions). Phase 1 builds what every resource needs, per spec #3 and ADR-0001's [phase 1 consequences](adr/0001-phase-0-api-consolidation.md#phase-1-foundation). The phase 1 foundation is done, with one follow-up left from the survey of the major providers (below); no resource kind exists yet, and `Group` opens phase 2. The three test harnesses of spec #3 are in place: the tracer bullet #28 (e2e, S3) runs the provider in kind under Crossplane, and the contract harness #29 (S1) runs the client layer against real instances, on both supported versions.
 
 Done so far:
 
@@ -45,6 +45,7 @@ Done so far:
 - The contrib-ready repository files (#23): `LICENSE` (Apache-2.0), `DCO`, `CODE_OF_CONDUCT.md` (CNCF pointer), `OWNERS.md`, `SECURITY.md` (private vulnerability reporting, cosign verification of releases), the issue and PR templates with the DCO checkbox, and `CONTRIBUTING.md`, which holds the coding, testing, commit and PR conventions every ticket follows. `GOVERNANCE`, `MAINTAINERS` and `ADOPTERS` wait for a contrib proposal.
 - The ADRs for the deviations from the original brief (#30), indexed in [`docs/adr/README.md`](adr/README.md): GitHub Actions and ghcr (0002), required immutable identifiers (0003), no `Group.members` (0004), adoption that fails without the annotation (0005), RBAC scope (0006), chainsaw instead of uptest (0007), the CRD reference with `crd-ref-docs` (0008). All are accepted. ADRs 0005 and 0006 were settled against a survey of the major Crossplane providers (2026-10-29), recorded in their Precedents sections: adoption refused without the annotation as a justified exception, a hand-set external-name accepted as an import on UUID kinds, no automatic adoption after a crash, Crossplane's default RBAC, the Secret cache on, no URL restriction. ADR-0007 corrects spec #3: uptest can call external APIs through its hooks; chainsaw is kept for the structure of the tests.
 - The supported matrix is defined once, as `OWUI_MATRIX_<major>_<minor>` in `hack/openwebui/lib.sh`, read through `owui_matrix` by the contract and e2e runs and by a `matrix` CI job that feeds both matrix jobs. Adding a version is adding one annotated variable (README, "Supported Open WebUI matrix").
+- The README documents the per-resource `crossplane.io/poll-interval` annotation and its relation to `--poll`, and the provider config `Ready` condition, specific to this provider (#45).
 
 ## Open phase 1 tickets
 
@@ -53,22 +54,22 @@ GitHub's issue dependencies are the source of truth for blockers; this table is 
 | Ticket | Title | Blocked by |
 | --- | --- | --- |
 | #44 | docs(security): ImageConfig example to verify releases | none, but needs the phase 4 release workflow |
-| #45 | docs: per-resource poll interval and provider config Ready condition | none |
 
 Signed publishing to ghcr (cosign, SBOM, maintainer approval) is phase 4, with the release.
 
 ## Frontier
 
-**#45** (per-resource poll interval and provider config Ready condition), unblocked. #44 waits for the release workflow of phase 4. Phase 2 (`Group`, then `Model`) starts once its tickets are opened under #3; the `Group` ticket builds on ADRs 0003, 0005 and 0006 (UUID identity, adoption and ownership, local references).
+No ticket is ready. #44 waits for the release workflow of phase 4. Phase 2 (`Group`, then `Model`) starts once its tickets are opened under #3; the `Group` ticket builds on ADRs 0003, 0005 and 0006 (UUID identity, adoption and ownership, local references).
 
 ## Open questions
 
 - GitHub private vulnerability reporting, which `SECURITY.md` names as the only reporting channel, is off on the repository. The maintainer turns it on under Settings, Code security.
 - The spec names the file `OWNERS`; the repository uses `OWNERS.md`, the template's name.
 - The coverage gate covers `internal/client/...` and `internal/controller/<pkg>`. Spec #3 also gates the normalization package: when it lands outside `internal/client`, add it to `hack/ci/test-coverage.sh` and to `CONTRIBUTING.md`.
-- Spec #3 sets the default poll interval to 5 minutes; `cmd/provider-openwebui/main.go` keeps the template's `1m`. A resource ticket or #45 should align them, or record the difference.
+- Spec #3 sets the default poll interval to 5 minutes; `cmd/provider-openwebui/main.go` keeps the template's `1m`, and the README documents `1m`. A resource ticket should align them, README included, or record the difference.
+- The README's "Poll interval" section says the provider has no managed resource kind yet, and its example uses `Group`: the `Group` ticket removes that note and checks the example against the real kind. The annotation itself is read from crossplane-runtime's source, and no test covers it yet.
 - [ADR-0004](adr/0004-no-group-members.md) and the limitations doc: the "Group membership" limitation section and its issue are still to be written, with the other limitation issues.
-- Provider configs have no `Synced` condition, so an unknown minor shows there as `Ready=False`. Managed resources get `Synced=False` from the connector's error, with the same message. `Connect` reports an allowed unsupported version through `Connection.Unsupported`; only the provider config emits the `Warning` event, so resource controllers need not emit one.
+- Provider configs have no `Synced` condition, so an unknown minor shows there as `Ready=False`. Managed resources get `Synced=False` from the connector's error, with the same message behind the runtime's `connect failed:` prefix. `Connect` reports an allowed unsupported version through `Connection.Unsupported`; only the provider config emits the `Warning` event, so resource controllers need not emit one.
 - 0.11.4 answers a function update with the same `400 "[ERROR: Error updating function]"` for a missing function and for invalid code, so the 0.11 profile maps it to no sentinel. The `Function` ticket must decide existence with a get, as ADR-0001 already requires, and surface the detail as is.
 - The profiles are tested directly, against the fixtures, because the resource `Client` interface (seam S1) does not exist yet. Spec #3 wants profiles tested only through S1, so these tests move behind it when the first resource lands.
 - Each resource's contract should record its fixtures and replace its capture scenario. `endpoint-restrictions` and `endpoint-restrictions-control` stay captured until every resource has a contract, and each resource contract should also run on the restricted instance.
